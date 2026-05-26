@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 
 export default function Home() {
-  // 1. Initialize state with a placeholder array first to avoid server/client mismatch
   const [recipes, setRecipes] = useState([]);
   
   const [formData, setFormData] = useState({
@@ -18,19 +17,18 @@ export default function Home() {
 
   const [editingId, setEditingId] = useState(null);
 
-  // 2. Load data from localStorage when the app first starts up
+  // Load from localStorage
   useEffect(() => {
     const savedRecipes = localStorage.getItem('mengupi_recipes');
     if (savedRecipes) {
       setRecipes(JSON.parse(savedRecipes));
     } else {
-      // Default starter logs if localStorage is empty
       const defaultRecipes = [
         {
           id: 1,
           name: "House Espresso Blend",
           beans: "Ethiopia + Colombia (Medium Roast)",
-          grind: "12 (Fine)",
+          grind: "12",
           dose: "18g",
           yield: "36g",
           time: "28s",
@@ -40,7 +38,7 @@ export default function Home() {
           id: 2,
           name: "Morning Latte Shot",
           beans: "Brazil Santos (Medium-Dark)",
-          grind: "14 (Medium-Fine)",
+          grind: "14",
           dose: "18.5g",
           yield: "40g",
           time: "26s",
@@ -52,7 +50,7 @@ export default function Home() {
     }
   }, []);
 
-  // 3. Save to localStorage automatically whenever the recipes state updates
+  // Save to localStorage
   useEffect(() => {
     if (recipes.length > 0) {
       localStorage.setItem('mengupi_recipes', JSON.stringify(recipes));
@@ -72,7 +70,8 @@ export default function Home() {
       return;
     }
 
-    const formatValue = (val, unit) => val.endsWith(unit) ? val : `${val}${unit}`;
+    // Strips any accidental units the user typed, keeping just the clean number/decimal
+    const cleanNumber = (val) => val.replace(/[^\d.]/g, '');
 
     if (editingId) {
       setRecipes(recipes.map(recipe => {
@@ -82,9 +81,9 @@ export default function Home() {
             name: formData.name,
             beans: formData.beans || 'Unspecified Beans',
             grind: formData.grind,
-            dose: formatValue(formData.dose, 'g'),
-            yield: formatValue(formData.yield, 'g'),
-            time: formatValue(formData.time, 's'),
+            dose: `${cleanNumber(formData.dose)}g`,
+            yield: `${cleanNumber(formData.yield)}g`,
+            time: `${cleanNumber(formData.time)}s`,
             notes: formData.notes || 'No extra tasting notes recorded.'
           };
         }
@@ -97,9 +96,9 @@ export default function Home() {
         name: formData.name,
         beans: formData.beans || 'Unspecified Beans',
         grind: formData.grind,
-        dose: formatValue(formData.dose, 'g'),
-        yield: formatValue(formData.yield, 'g'),
-        time: formatValue(formData.time, 's'),
+        dose: `${cleanNumber(formData.dose)}g`,
+        yield: `${cleanNumber(formData.yield)}g`,
+        time: `${cleanNumber(formData.time)}s`,
         notes: formData.notes || 'No extra tasting notes recorded.'
       };
       setRecipes([newRecipe, ...recipes]);
@@ -111,13 +110,16 @@ export default function Home() {
   const startEdit = (recipe, e) => {
     e.stopPropagation();
     setEditingId(recipe.id);
+    // When editing, strip the unit letters so the user just sees the raw numbers in the inputs
+    const stripUnit = (val) => val ? val.replace(/[^\d.]/g, '') : '';
+    
     setFormData({
       name: recipe.name,
       beans: recipe.beans,
       grind: recipe.grind,
-      dose: recipe.dose,
-      yield: recipe.yield,
-      time: recipe.time,
+      dose: stripUnit(recipe.dose),
+      yield: stripUnit(recipe.yield),
+      time: stripUnit(recipe.time),
       notes: recipe.notes
     });
   };
@@ -127,12 +129,9 @@ export default function Home() {
     if (confirm('Are you sure you want to delete this extraction log?')) {
       const updatedRecipes = recipes.filter(recipe => recipe.id !== id);
       setRecipes(updatedRecipes);
-      
-      // Handle edge case if list becomes completely empty
       if (updatedRecipes.length === 0) {
         localStorage.setItem('mengupi_recipes', JSON.stringify([]));
       }
-      
       if (editingId === id) {
         setEditingId(null);
         setFormData({ name: '', beans: '', grind: '', dose: '', yield: '', time: '', notes: '' });
@@ -197,7 +196,7 @@ export default function Home() {
               <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Profile Name</label>
               <input 
                 type="text" name="name" value={formData.name} onChange={handleInputChange}
-                placeholder="e.g., Cafelffe Morning Shot" 
+                placeholder="e.g., Morning Espresso" 
                 className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
               />
             </div>
@@ -205,11 +204,12 @@ export default function Home() {
               <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Coffee Beans</label>
               <input 
                 type="text" name="beans" value={formData.beans} onChange={handleInputChange}
-                placeholder="e.g., Ethiopia Yirgacheffe" 
+                placeholder="e.g., Blend or Single Origin" 
                 className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
               />
             </div>
             
+            {/* 3-Column Param Grid with Inline Units */}
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Grind</label>
@@ -221,35 +221,45 @@ export default function Home() {
               </div>
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Dose</label>
-                <input 
-                  type="text" name="dose" value={formData.dose} onChange={handleInputChange}
-                  placeholder="18g" 
-                  className="w-full text-xs p-2.5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
-                />
+                <div className="relative flex items-center">
+                  <input 
+                    type="text" name="dose" value={formData.dose} onChange={handleInputChange}
+                    placeholder="18" 
+                    className="w-full text-xs p-2.5 pr-5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
+                  />
+                  <span className="absolute right-2 text-[10px] font-bold text-stone-400 pointer-events-none">g</span>
+                </div>
               </div>
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Yield</label>
-                <input 
-                  type="text" name="yield" value={formData.yield} onChange={handleInputChange}
-                  placeholder="36g" 
-                  className="w-full text-xs p-2.5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
-                />
+                <div className="relative flex items-center">
+                  <input 
+                    type="text" name="yield" value={formData.yield} onChange={handleInputChange}
+                    placeholder="36" 
+                    className="w-full text-xs p-2.5 pr-5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
+                  />
+                  <span className="absolute right-2 text-[10px] font-bold text-stone-400 pointer-events-none">g</span>
+                </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Time (Seconds)</label>
-              <input 
-                type="text" name="time" value={formData.time} onChange={handleInputChange}
-                placeholder="27" 
-                className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
-              />
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Extraction Time</label>
+              <div className="relative flex items-center">
+                <input 
+                  type="text" name="time" value={formData.time} onChange={handleInputChange}
+                  placeholder="28" 
+                  className="w-full text-xs p-2.5 pr-7 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
+                />
+                <span className="absolute right-3 text-[10px] font-bold text-stone-400 pointer-events-none">sec</span>
+              </div>
             </div>
+            
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Tasting Notes</label>
               <textarea 
                 name="notes" value={formData.notes} onChange={handleInputChange} rows="2"
-                placeholder="How did the shot taste? Acidity, sweetness..." 
+                placeholder="How did the shot taste?" 
                 className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50 resize-none"
               />
             </div>
