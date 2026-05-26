@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function Home() {
   const [recipes, setRecipes] = useState([]);
@@ -16,6 +16,41 @@ export default function Home() {
   });
 
   const [editingId, setEditingId] = useState(null);
+
+  // --- TIMER STATE WORKSPACE ---
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const timerRef = useRef(null);
+
+  // Handle live stopwatch count increments
+  useEffect(() => {
+    if (isTimerRunning) {
+      timerRef.current = setInterval(() => {
+        setTimerSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      clearInterval(timerRef.current);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [isTimerRunning]);
+
+  const toggleTimer = () => {
+    if (isTimerRunning) {
+      // Stopping the timer: automatically populate the form's Extraction Time field!
+      setFormData(prev => ({ ...prev, time: timerSeconds.toString() }));
+      setIsTimerRunning(false);
+    } else {
+      // Starting the timer: reset clock count first
+      setTimerSeconds(0);
+      setIsTimerRunning(true);
+    }
+  };
+
+  const resetTimer = () => {
+    setIsTimerRunning(false);
+    setTimerSeconds(0);
+  };
+  // -----------------------------
 
   // Load from localStorage
   useEffect(() => {
@@ -70,7 +105,6 @@ export default function Home() {
       return;
     }
 
-    // Strips any accidental units the user typed, keeping just the clean number/decimal
     const cleanNumber = (val) => val.replace(/[^\d.]/g, '');
 
     if (editingId) {
@@ -105,12 +139,12 @@ export default function Home() {
     }
 
     setFormData({ name: '', beans: '', grind: '', dose: '', yield: '', time: '', notes: '' });
+    setTimerSeconds(0); // Reset timer display after saving
   };
 
   const startEdit = (recipe, e) => {
     e.stopPropagation();
     setEditingId(recipe.id);
-    // When editing, strip the unit letters so the user just sees the raw numbers in the inputs
     const stripUnit = (val) => val ? val.replace(/[^\d.]/g, '') : '';
     
     setFormData({
@@ -176,103 +210,136 @@ export default function Home() {
 
       <main className="max-w-5xl mx-auto px-6 pb-24 grid gap-8 md:grid-cols-3 items-start">
         
-        {/* LOG FORM */}
-        <section className="bg-white border border-stone-200 rounded-2xl p-5 shadow-sm md:col-span-1">
-          <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-100">
-            <h2 className="text-lg font-bold text-stone-800">
-              {editingId ? "✏️ Edit Extraction" : "Log New Extraction"}
-            </h2>
-            {editingId && (
+        {/* LOG FORM CONTAINER */}
+        <section className="space-y-4 md:col-span-1">
+          
+          {/* INTEGRATED LIVE STOPWATCH */}
+          <div className="bg-stone-900 text-stone-100 rounded-2xl p-4 shadow-sm border border-stone-800 flex items-center justify-between">
+            <div>
+              <span className="block text-[9px] uppercase tracking-widest text-stone-400 font-bold mb-0.5">Live Shot Timer</span>
+              <span className="text-2xl font-mono font-bold tracking-tight text-amber-400">
+                {timerSeconds}<span className="text-xs text-stone-400 font-sans ml-0.5">s</span>
+              </span>
+            </div>
+            <div className="flex gap-2">
               <button 
-                onClick={cancelEdit}
-                className="text-xs text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+                type="button"
+                onClick={toggleTimer}
+                className={`text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                  isTimerRunning 
+                    ? "bg-amber-600 text-white hover:bg-amber-700" 
+                    : "bg-stone-800 text-stone-200 hover:bg-stone-700 border border-stone-700"
+                }`}
               >
-                Cancel
+                {isTimerRunning ? "Stop & Capture" : "Start"}
               </button>
-            )}
+              <button 
+                type="button"
+                onClick={resetTimer}
+                className="text-xs font-medium bg-stone-800 text-stone-400 hover:text-stone-200 px-2.5 py-2 rounded-lg cursor-pointer transition-colors border border-stone-700"
+              >
+                Reset
+              </button>
+            </div>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Profile Name</label>
-              <input 
-                type="text" name="name" value={formData.name} onChange={handleInputChange}
-                placeholder="e.g., Morning Espresso" 
-                className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
-              />
+
+          {/* MAIN FORM */}
+          <div className="bg-white border border-stone-200 rounded-2xl p-5 shadow-sm">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-100">
+              <h2 className="text-lg font-bold text-stone-800">
+                {editingId ? "✏️ Edit Extraction" : "Log New Extraction"}
+              </h2>
+              {editingId && (
+                <button 
+                  onClick={cancelEdit}
+                  className="text-xs text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Coffee Beans</label>
-              <input 
-                type="text" name="beans" value={formData.beans} onChange={handleInputChange}
-                placeholder="e.g., Blend or Single Origin" 
-                className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
-              />
-            </div>
-            
-            {/* 3-Column Param Grid with Inline Units */}
-            <div className="grid grid-cols-3 gap-2">
+            <form onSubmit={handleSubmit} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Grind</label>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Profile Name</label>
                 <input 
-                  type="text" name="grind" value={formData.grind} onChange={handleInputChange}
-                  placeholder="12" 
-                  className="w-full text-xs p-2.5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
+                  type="text" name="name" value={formData.name} onChange={handleInputChange}
+                  placeholder="e.g., Morning Espresso" 
+                  className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Dose</label>
-                <div className="relative flex items-center">
-                  <input 
-                    type="text" name="dose" value={formData.dose} onChange={handleInputChange}
-                    placeholder="18" 
-                    className="w-full text-xs p-2.5 pr-5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
-                  />
-                  <span className="absolute right-2 text-[10px] font-bold text-stone-400 pointer-events-none">g</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Yield</label>
-                <div className="relative flex items-center">
-                  <input 
-                    type="text" name="yield" value={formData.yield} onChange={handleInputChange}
-                    placeholder="36" 
-                    className="w-full text-xs p-2.5 pr-5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
-                  />
-                  <span className="absolute right-2 text-[10px] font-bold text-stone-400 pointer-events-none">g</span>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Extraction Time</label>
-              <div className="relative flex items-center">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Coffee Beans</label>
                 <input 
-                  type="text" name="time" value={formData.time} onChange={handleInputChange}
-                  placeholder="28" 
-                  className="w-full text-xs p-2.5 pr-7 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
+                  type="text" name="beans" value={formData.beans} onChange={handleInputChange}
+                  placeholder="e.g., Blend or Single Origin" 
+                  className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
                 />
-                <span className="absolute right-3 text-[10px] font-bold text-stone-400 pointer-events-none">sec</span>
               </div>
-            </div>
-            
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Tasting Notes</label>
-              <textarea 
-                name="notes" value={formData.notes} onChange={handleInputChange} rows="2"
-                placeholder="How did the shot taste?" 
-                className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50 resize-none"
-              />
-            </div>
+              
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Grind</label>
+                  <input 
+                    type="text" name="grind" value={formData.grind} onChange={handleInputChange}
+                    placeholder="12" 
+                    className="w-full text-xs p-2.5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Dose</label>
+                  <div className="relative flex items-center">
+                    <input 
+                      type="text" name="dose" value={formData.dose} onChange={handleInputChange}
+                      placeholder="18" 
+                      className="w-full text-xs p-2.5 pr-5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
+                    />
+                    <span className="absolute right-2 text-[10px] font-bold text-stone-400 pointer-events-none">g</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Yield</label>
+                  <div className="relative flex items-center">
+                    <input 
+                      type="text" name="yield" value={formData.yield} onChange={handleInputChange}
+                      placeholder="36" 
+                      className="w-full text-xs p-2.5 pr-5 text-center border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
+                    />
+                    <span className="absolute right-2 text-[10px] font-bold text-stone-400 pointer-events-none">g</span>
+                  </div>
+                </div>
+              </div>
 
-            <button 
-              type="submit"
-              className={`w-full text-white font-semibold text-xs py-2.5 rounded-lg transition-colors cursor-pointer mt-2 shadow-sm ${
-                editingId ? "bg-amber-700 hover:bg-amber-800" : "bg-amber-800 hover:bg-amber-900"
-              }`}
-            >
-              {editingId ? "Update Log Entry" : "Save Extraction"}
-            </button>
-          </form>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Extraction Time</label>
+                <div className="relative flex items-center">
+                  <input 
+                    type="text" name="time" value={formData.time} onChange={handleInputChange}
+                    placeholder="28" 
+                    className="w-full text-xs p-2.5 pr-7 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50"
+                  />
+                  <span className="absolute right-3 text-[10px] font-bold text-stone-400 pointer-events-none">sec</span>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-1">Tasting Notes</label>
+                <textarea 
+                  name="notes" value={formData.notes} onChange={handleInputChange} rows="2"
+                  placeholder="How did the shot taste?" 
+                  className="w-full text-xs p-2.5 border border-stone-200 rounded-lg focus:outline-none focus:border-amber-500 bg-stone-50/50 resize-none"
+                />
+              </div>
+
+              <button 
+                type="submit"
+                className={`w-full text-white font-semibold text-xs py-2.5 rounded-lg transition-colors cursor-pointer mt-2 shadow-sm ${
+                  editingId ? "bg-amber-700 hover:bg-amber-800" : "bg-amber-800 hover:bg-amber-900"
+                }`}
+              >
+                {editingId ? "Update Log Entry" : "Save Extraction"}
+              </button>
+            </form>
+          </div>
         </section>
 
         {/* RECIPES GRID */}
